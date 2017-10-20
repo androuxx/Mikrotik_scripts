@@ -1,0 +1,32 @@
+{
+log warning "===============Start script================="
+# Remove exisiting addresses from the current Address list
+:local myListName "youtube_list"
+/ip firewall address-list remove [/ip firewall address-list find list=$myListName]
+ :local content [/file get [/file find name=filename.txt] contents]
+:local contentLen [:len $content]
+:local lineEnd 0
+:local line ""
+:local lastEnd 0
+:while ($lineEnd < $contentLen) do={
+   :set lineEnd [:find $content "\r\n" $lastEnd]
+   :if ([:len $lineEnd] = 0) do={
+     :set lineEnd $contentLen
+   }
+     :set line [:pick $content $lastEnd $lineEnd]
+   :set lastEnd ($lineEnd + 2)
+log warning $line
+ :if ( [:pick $line 0 1] != "#" ) do={
+   /ip firewall address-list add list=$myListName address=$line
+}
+} 
+}
+# list file like that:
+
+#################
+#command
+#103.4.96.0/22
+#157.240.0.0/17
+#157.240.11.0/24
+#173.252.64.0/19
+#179.60.192.0/22
