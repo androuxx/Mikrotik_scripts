@@ -1,0 +1,48 @@
+:local myServers {"ytimg"}
+:local myListName "youtube_list"
+:local myTimeout "00:07:00"
+
+/ip firewall address-list {
+	remove [find list=$myListName]
+}
+
+
+/ip dns cache all {
+    :foreach i in=$myServers do={
+        :foreach j in=[find where (name~$i)] do={
+            :local myName [get $j name]
+            :local myType [get $j type]
+            :local myData [get $j data]
+
+            :if ($myType = "A") do={
+                :do {
+                    /ip firewall address-list add address=$myData list=$myListName comment="$myName" timeout=$myTimeout;
+                } on-error={
+                    :put "DNSCACHE: Error on $myName $myData $myType"
+                }
+            }
+
+            :if ($myType = "CNAME") do={
+                :local currentName $j
+                :local nextName [find where (name=$myData && type="CNAME")]
+
+                :while ($nextName != "") do={
+                    :set currentName $nextName
+                    :set nextName [find where (name=[get $nextName data] && type="CNAME")]
+                }
+
+                :resolve [get $currentName data]
+
+                :foreach k in=[find where (name=[get $currentName data] && type="A")] do={
+                    :set myData [get $k data]
+                    :do {
+                        /ip firewall address-list add address=$myData list=$myListName comment="$myName" timeout=$myTimeout;
+                    } on-error={
+                        :put "DNSCACHE: Error on $myName $myData $myType"
+                    }
+                }
+            }
+        }
+    }
+}
+
