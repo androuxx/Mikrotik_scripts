@@ -1,0 +1,34 @@
+:global ListName gmail_app
+:global Servers {"mail.google.com","cloudconfig.googleapis.com","imap.google.com"}
+:global  myTimeout "00:07:00"
+
+:foreach aServer in=$Servers do={
+#force the dns entries to be cached
+  :resolve $aServer;
+:log info "add record"
+  :foreach dnsRecord in=[/ip dns cache all find where (name=$aServer)] do={
+#if it's an A records add it directly
+    :if ([/ip dns cache all get $dnsRecord type]="A") do={
+       /ip firewall address-list add list=$ListName address=[/ip dns cache all get $dnsRecord data] comment=$aServer timeout=$myTimeout;
+ 
+    }
+
+#if it's a CNAME follow it until we get A records
+    :if ([/ip dns cache all get $dnsRecord type]="CNAME") do={
+      :local cname;
+      :local nextCname
+      :set cname [/ip dns cache all find where (name=$aServer && type="CNAME")];
+      :set nextCname [/ip dns cache all find where (name=[/ip dns cache all get $cname data] && type="CNAME")];
+
+      :while ($nextCname != "") do={
+          :set cname $nextCname;
+          :set nextCname [/ip dns cache all find where (name=[/ip dns cache all get $cname data] && type="CNAME")];
+        }
+  
+#add the a records we found
+    :foreach aRecord in=[/ip dns cache all find where (name=[/ip dns cache all get $cname data] && type="A")] do={
+      /ip firewall address-list add list=$ListName address=[/ip dns cache all get $aRecord data] comment=$aServer timeout=$myTimeout;
+      }
+    }
+  }
+}
